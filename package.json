@@ -1,0 +1,16 @@
+{
+  "name": "eb-cwl-cwemf",
+  "private": true,
+  "scripts": {
+    "test": "sls package -r us-east-1 -s stg",
+    "deploy": "sls deploy --verbose -r us-east-1 -s stg",
+    "pub": "node pub.js",
+    "remove": "sls remove --verbose -r us-east-1 -s stg"
+  },
+  "devDependencies": {
+    "aws-sdk": "^2.1162.0",
+    "bluebird": "^3.7.2",
+    "serverless": "^3.0.0",
+    "uuid": "^8.3.2"
+  }
+}

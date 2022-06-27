@@ -1,0 +1,84 @@
+service: eb-cwl-cwemf
+
+provider:
+  name: aws
+
+resources:
+  Resources:
+    Bus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: ${self:service}-${opt:stage}-bus
+
+    LogGroupEvents: 
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: 30
+        LogGroupName: /aws/events/${self:service}-${opt:stage}-events
+    LogGroupMetrics: 
+      Type: AWS::Logs::LogGroup
+      Properties:
+        RetentionInDays: 30
+        LogGroupName: /aws/events/${self:service}-${opt:stage}-metrics
+
+    LogRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: ${self:service}-${opt:stage}-log
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource:
+                    - Fn::GetAtt: [ LogGroupEvents, Arn ]
+                    - Fn::GetAtt: [ LogGroupMetrics, Arn ]
+
+    LogRuleEvents:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName:
+          Ref: Bus
+        EventPattern:
+          detail:
+            type:
+              - anything-but: nothing
+        State: ENABLED
+        RoleArn:
+          Fn::GetAtt: [ LogRole, Arn ]
+        Targets:
+          - Id: LogEvents
+            Arn: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LogGroupEvents}'
+
+    LogRuleMetrics:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName:
+          Ref: Bus
+        EventPattern:
+          detail:
+            type:
+              - anything-but: nothing
+        State: ENABLED
+        RoleArn:
+          Fn::GetAtt: [ LogRole, Arn ]
+        Targets:
+          - Id: LogMetrics
+            Arn: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LogGroupMetrics}'
+            InputTransformer:
+              InputPathsMap:
+                type: $.detail.type
+                timestamp: $.detail.timestamp
+              InputTemplate: |
+                {
+                  "timestamp": <timestamp>,
+                  "message": "{\"_aws\": {\"Timestamp\": <timestamp>,\"CloudWatchMetrics\": [{\"Namespace\": \"test\",\"Dimensions\": [[\"type\"]],\"Metrics\": [{\"Name\": \"DomainEvents\",\"Unit\": \"Count\"}]}]},\"type\": \"<type>\",\"DomainEvents\": 1}"
+                }
